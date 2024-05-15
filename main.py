@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import streamlit as st
+import pandas as pd
 import openpyxl
 from io import BytesIO
 from tempfile import NamedTemporaryFile
@@ -13,16 +14,17 @@ def check_amazon(url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if soup.find(string="No disponible por el momento."):
-                return "INACTIVO", 0, "-"
+                return "INACTIVO", 0, "-", "-"
             else:
                 rating = soup.find("span", "a-icon-alt")
-
+                review = soup.find("span", id="acrCustomerReviewText")
                 return ("ACTIVO", "-",
-                        (rating.text if rating is not None else "-"))
+                        (rating.text if rating is not None else "-"),
+                        (review.text if review is not None else "-"))
         else:
-            return "PAGINA NO ENCONTRADA", 0, "-"
+            return "PAGINA NO ENCONTRADA", 0, "-", "-"
     except requests.RequestException:
-        return "Failed to fetch the page", 0, "-"
+        return "Failed to fetch the page", 0, "-", "-"
 
 
 def check_mercadolibre(url):
@@ -31,52 +33,71 @@ def check_mercadolibre(url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if "publicación pausada" in response.text.lower():
-                return "INACTIVO", 0, "-"
+                return "INACTIVO", 0, "-", "-"
             else:
                 price = soup.find("span", "andes-money-amount__fraction")
                 rating = soup.find("span", "ui-pdp-review__rating")
+                review = soup.find(
+                    "p",
+                    class_="ui-review-ui-review-capability__rating__label")
                 return ("ACTIVO", (price.text if price is not None else "-"),
-                        (rating.text if rating is not None else "-"))
+                        (rating.text if rating is not None else "-"),
+                        (review.text if review is not None else "-"))
         else:
-            return "PAGINA NO ENCONTRADA", 0, "-"
+            return "PAGINA NO ENCONTRADA", 0, "-", "-"
     except requests.RequestException:
-        return "Failed to fetch the page", 0, "-"
+        return "Failed to fetch the page", 0, "-", "-"
 
 
-def check_walmart(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            # Check specific indicators of availability
-            if "agotado" in response.text.lower():
-                return "INACTIVO"
-            else:
-                return "ACTIVO"
-    except requests.RequestException:
-        return "Failed to fetch the page"
+# def check_walmart(url):
+#     try:
+#         response = requests.get(url)
+#         if response.status_code == 200:
+#             soup = BeautifulSoup(response.text, 'html.parser')
+#             # Check specific indicators of availability
+#             if "agotado" in response.text.lower():
+#                 return "INACTIVO"
+#             else:
+#                 return "ACTIVO"
+#     except requests.RequestException:
+#         return "Failed to fetch the page"
 
 
 def check_liverpool(url):
     try:
         response = requests.get(url)
-        if response.status_code == 404:
-            return "Product link not available"
+        if "lo sentimos, la página ha sido actualizada o no existe" in response.text.lower(
+        ):
+            return "PAGINA NO ENCONTRADA", 0, "-", "-"
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            discount_price = soup.find(
+                "p", class_="a-product__paragraphDiscountPrice")
+            if discount_price is None:
+                discount_price = soup.find(
+                    "p", class_="a-product__paragraphRegularPrice")
+            rating = soup.find("span", "TTreviewSummaryAverageRating")
+            reviews = soup.find("div", "TTreviewCount")
+            return ("ACTIVO", (discount_price.text
+                               if discount_price is not None else "-"),
+                    (rating.text if rating is not None else "-"),
+                    (review.text if review is not None else "-"))
         else:
-            return "ACTIVO"
+            return "INACTIVO", 0, "-", "-"
+
     except requests.RequestException:
-        return "Failed to fetch the page"
+        return "PAGINA NO ENCONTRADA", 0, "-", "-"
 
 
-def check_coppel(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 404:
-            return "Product link not available"
-        else:
-            return "ACTIVO"
-    except requests.RequestException:
-        return "Failed to fetch the page"
+# def check_coppel(url):
+#     try:
+#         response = requests.get(url)
+#         if response.status_code == 404:
+#             return "Product link not available"
+#         else:
+#             return "ACTIVO"
+#     except requests.RequestException:
+#         return "Failed to fetch the page"
 
 
 def main():
@@ -99,7 +120,7 @@ def main():
 
         keys = [
             "Marketplace", "Codigo", "Descripcion", "Link", "Estatus",
-            "Precio", "Calificación"
+            "Precio", "Calificación", "# Reseñas"
         ]
         result_row_num = 1
 
@@ -121,15 +142,19 @@ def main():
             result = ""
             price = "-"
             rating = "-"
+            reviews = "-"
             if marketplace == 'Amazon':
-                result, price, rating = check_amazon(link)
+                result, price, rating, reviews = check_amazon(link)
 
             elif marketplace == 'ML':
-                result, price, rating = check_mercadolibre(link)
+                result, price, rating, reviews = check_mercadolibre(link)
+
+            elif marketplace == 'Liverpool':
+                result, price, rating, reviews = check_liverpool(link)
 
             row = [
                 marketplace, product_code, product_name, link, result, price,
-                rating
+                rating, reviews
             ]
 
             for col_num, cell_value in enumerate(row, 1):
