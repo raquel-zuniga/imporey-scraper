@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "repl_nix_Streamlit-Otto"
+version = "0.1.0"
+description = ""
+authors = ["Replit user <<>>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10.0,<3.12"
+beautifulsoup4 = "^4.12.3"
+requests = "^2.31.0"
+streamlit = "^1.34.0"
+pandas = "^2.2.2"
+openpyxl = "^3.0.9"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
