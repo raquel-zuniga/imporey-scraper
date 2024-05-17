@@ -8,7 +8,17 @@ from tempfile import NamedTemporaryFile
 from openpyxl.styles import Color, PatternFill
 
 
+def check_url(url):
+    if 'https' in url:
+        return url
+    else:
+        if 'http' in url:
+            return str(url.replace('http', 'https'))
+        return str('https://' + url)
+
+
 def check_amazon(url):
+    url = check_url(url)
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -23,13 +33,16 @@ def check_amazon(url):
                         (review.text if review is not None else "-"))
         else:
             return "PAGINA NO ENCONTRADA", 0, "-", "-"
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(e)
         return "Failed to fetch the page", 0, "-", "-"
 
 
 def check_mercadolibre(url):
+    # url = check_url(url)
     try:
         response = requests.get(url)
+        st.write(response.status_code)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if "publicación pausada" in response.text.lower():
@@ -45,7 +58,8 @@ def check_mercadolibre(url):
                         (review.text if review is not None else "-"))
         else:
             return "PAGINA NO ENCONTRADA", 0, "-", "-"
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(e)
         return "Failed to fetch the page", 0, "-", "-"
 
 
@@ -64,11 +78,9 @@ def check_mercadolibre(url):
 
 
 def check_liverpool(url):
+    url = check_url(url)
     try:
         response = requests.get(url)
-        if "lo sentimos, la página ha sido actualizada o no existe" in response.text.lower(
-        ):
-            return "PAGINA NO ENCONTRADA", 0, "-", "-"
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             discount_price = soup.find(
@@ -81,11 +93,12 @@ def check_liverpool(url):
             return ("ACTIVO", (discount_price.text
                                if discount_price is not None else "-"),
                     (rating.text if rating is not None else "-"),
-                    (review.text if review is not None else "-"))
+                    (reviews.text if reviews is not None else "-"))
         else:
             return "INACTIVO", 0, "-", "-"
 
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(e)
         return "PAGINA NO ENCONTRADA", 0, "-", "-"
 
 
