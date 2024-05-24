@@ -6,6 +6,7 @@ import openpyxl
 from io import BytesIO
 from tempfile import NamedTemporaryFile
 from openpyxl.styles import Color, PatternFill
+import json
 
 
 def check_url(url):
@@ -34,7 +35,7 @@ def check_amazon(url):
         else:
             return "PAGINA NO ENCONTRADA", 0, "-", "-"
     except requests.RequestException as e:
-        print(e)
+        st.write(e)
         return "Failed to fetch the page", 0, "-", "-"
 
 
@@ -42,7 +43,6 @@ def check_mercadolibre(url):
     # url = check_url(url)
     try:
         response = requests.get(url)
-        st.write(response.status_code)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if "publicación pausada" in response.text.lower():
@@ -80,20 +80,39 @@ def check_mercadolibre(url):
 def check_liverpool(url):
     url = check_url(url)
     try:
-        response = requests.get(url)
+        headers = {
+            "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept":
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://www.google.com/",
+            # Add more headers here
+        }
+        response = requests.get(url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            discount_price = soup.find(
-                "p", class_="a-product__paragraphDiscountPrice")
-            if discount_price is None:
-                discount_price = soup.find(
-                    "p", class_="a-product__paragraphRegularPrice")
-            rating = soup.find("span", "TTreviewSummaryAverageRating")
-            reviews = soup.find("div", "TTreviewCount")
-            return ("ACTIVO", (discount_price.text
-                               if discount_price is not None else "-"),
-                    (rating.text if rating is not None else "-"),
-                    (reviews.text if reviews is not None else "-"))
+            script_tag = soup.find("script", id="__NEXT_DATA__")
+            json_object = json.loads(script_tag.text)
+            if json_object["query"]["data"]["mainContent"]["records"][0][
+                    "allMeta"]["variants"][0]["prices"][
+                        "promoPrice"] is not None or decimal.Decimal(
+                            json_object["query"]["data"]["mainContent"]
+                            ["records"][0]["allMeta"]["variants"][0]["prices"]
+                            ["promoPrice"]) > 0:
+                discount_price = json_object["query"]["data"]["mainContent"][
+                    "records"][0]["allMeta"]["variants"][0]["prices"][
+                        "promoPrice"]
+            else:
+                discount_price = json_object["query"]["data"]["mainContent"][
+                    "records"][0]["allMeta"]["variants"][0]["prices"][
+                        "listPrice"]
+
+            return ("ACTIVO",
+                    (discount_price if discount_price is not None else "-"),
+                    "-", "-")
         else:
             return "INACTIVO", 0, "-", "-"
 
@@ -142,6 +161,8 @@ def main():
             cell.value = column_title
 
         ###
+        st.write("Procesando archivo...")
+        i = 1
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row[0] is None:
                 continue
@@ -173,6 +194,9 @@ def main():
             for col_num, cell_value in enumerate(row, 1):
                 cell = result_ws.cell(row=result_row_num, column=col_num)
                 cell.value = cell_value
+            i += 1
+        st.write("Terminando de procesar archivo...")
+        st.write("Se procesaron ", i, " productos.")
         for e_column in result_ws['E']:
             if e_column.value == "ACTIVO":
                 e_column.fill = PatternFill(start_color='38B856',
