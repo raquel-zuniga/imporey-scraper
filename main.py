@@ -7,6 +7,8 @@ from io import BytesIO
 from tempfile import NamedTemporaryFile
 from openpyxl.styles import Color, PatternFill
 import json
+import decimal
+from itertools import cycle
 
 
 def check_url(url):
@@ -20,47 +22,92 @@ def check_url(url):
 
 def check_amazon(url):
     url = check_url(url)
+
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36",
+        # Add more user agents here
+    ]
+
+    user_agent_cycle = cycle(user_agents)
     try:
-        response = requests.get(url)
+        headers = {
+            "User-Agent": next(user_agent_cycle),
+            "Accept":
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://www.google.com/",
+            # Add more headers here
+        }
+        response = requests.get(url, headers=headers)
+        # st.write(response.status_code)
+        if "necesitamos asegurarnos de que no eres un robot" in response.text.lower(
+        ):
+            return "CAPTCHA", 0, 0, "-", "-"
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if soup.find(string="No disponible por el momento."):
-                return "INACTIVO", 0, "-", "-"
+                return "INACTIVO", 0, 0, "-", "-"
             else:
+                promotion_price = 0
+                promotion_span = soup.find("span", class_="savingsPercentage")
+                if promotion_span is not None:
+                    promotion_price = soup.find("span",
+                                                class_="a-price a-text-price")
+                    st.write(promotion_price)
+                price = soup.find("span", class_="a-price-whole")
                 rating = soup.find("span", "a-icon-alt")
                 review = soup.find("span", id="acrCustomerReviewText")
-                return ("ACTIVO", "-",
-                        (rating.text if rating is not None else "-"),
+                return ("ACTIVO", (price.text if price is not None else "-"),
+                        0, (rating.text if rating is not None else "-"),
                         (review.text if review is not None else "-"))
         else:
-            return "PAGINA NO ENCONTRADA", 0, "-", "-"
+            return "PAGINA NO ENCONTRADA", 0, 0, "-", "-"
     except requests.RequestException as e:
         st.write(e)
-        return "Failed to fetch the page", 0, "-", "-"
+        return "Failed to fetch the page", 0, 0, "-", "-"
 
 
 def check_mercadolibre(url):
     # url = check_url(url)
     try:
         response = requests.get(url)
+        # st.write(response.status_code)
         if response.status_code == 200:
+            # st.write(response.text)
             soup = BeautifulSoup(response.text, 'html.parser')
             if "publicación pausada" in response.text.lower():
-                return "INACTIVO", 0, "-", "-"
+                return "INACTIVO", 0, 0, "-", "-"
             else:
-                price = soup.find("span", "andes-money-amount__fraction")
+                price = soup.find("span",
+                                  class_="andes-money-amount__fraction")
+                promotion_price = soup.find(
+                    "span", class_="andes-money-amount__fraction")
+                price_arr = soup.find_all(
+                    "span", class_="andes-money-amount__fraction")
+                list_price = price_arr[0]
+                promotion_price = None
+                if len(price_arr) > 1:
+                    promotion_price = price_arr[1]
                 rating = soup.find("span", "ui-pdp-review__rating")
                 review = soup.find(
                     "p",
                     class_="ui-review-ui-review-capability__rating__label")
-                return ("ACTIVO", (price.text if price is not None else "-"),
+                return ("ACTIVO",
+                        (list_price.text if price is not None else "-"),
+                        (promotion_price.text
+                         if promotion_price is not None else "-"),
                         (rating.text if rating is not None else "-"),
                         (review.text if review is not None else "-"))
         else:
-            return "PAGINA NO ENCONTRADA", 0, "-", "-"
+            return "PAGINA NO ENCONTRADA", 0, 0, "-", "-"
     except requests.RequestException as e:
         print(e)
-        return "Failed to fetch the page", 0, "-", "-"
+        return "Failed to fetch the page", 0, 0, "-", "-"
 
 
 # def check_walmart(url):
@@ -105,20 +152,20 @@ def check_liverpool(url):
                 discount_price = json_object["query"]["data"]["mainContent"][
                     "records"][0]["allMeta"]["variants"][0]["prices"][
                         "promoPrice"]
-            else:
-                discount_price = json_object["query"]["data"]["mainContent"][
-                    "records"][0]["allMeta"]["variants"][0]["prices"][
-                        "listPrice"]
+
+            regular_price = json_object["query"]["data"]["mainContent"][
+                "records"][0]["allMeta"]["variants"][0]["prices"]["listPrice"]
 
             return ("ACTIVO",
+                    (regular_price if regular_price is not None else "-"),
                     (discount_price if discount_price is not None else "-"),
                     "-", "-")
         else:
-            return "INACTIVO", 0, "-", "-"
+            return "INACTIVO", 0, 0, "-", "-"
 
     except requests.RequestException as e:
         print(e)
-        return "PAGINA NO ENCONTRADA", 0, "-", "-"
+        return "PAGINA NO ENCONTRADA", 0, 0, "-", "-"
 
 
 # def check_coppel(url):
@@ -152,7 +199,7 @@ def main():
 
         keys = [
             "Marketplace", "Codigo", "Descripcion", "Link", "Estatus",
-            "Precio", "Calificación", "# Reseñas"
+            "Precio Regular", "Precio Promoción", "Calificación", "# Reseñas"
         ]
         result_row_num = 1
 
@@ -162,7 +209,7 @@ def main():
 
         ###
         st.write("Procesando archivo...")
-        i = 1
+        i = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row[0] is None:
                 continue
@@ -177,18 +224,22 @@ def main():
             price = "-"
             rating = "-"
             reviews = "-"
+            promotion_price = "-"
             if marketplace == 'Amazon':
-                result, price, rating, reviews = check_amazon(link)
+                result, price, promotion_price, rating, reviews = check_amazon(
+                    link)
 
             elif marketplace == 'ML':
-                result, price, rating, reviews = check_mercadolibre(link)
+                result, price, promotion_price, rating, reviews = check_mercadolibre(
+                    link)
 
             elif marketplace == 'Liverpool':
-                result, price, rating, reviews = check_liverpool(link)
+                result, price, promotion_price, rating, reviews = check_liverpool(
+                    link)
 
             row = [
                 marketplace, product_code, product_name, link, result, price,
-                rating, reviews
+                promotion_price, rating, reviews
             ]
 
             for col_num, cell_value in enumerate(row, 1):
