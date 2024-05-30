@@ -126,6 +126,7 @@ def check_mercadolibre(url):
 
 def check_liverpool(url):
     url = check_url(url)
+    # st.write(url)
     try:
         headers = {
             "User-Agent":
@@ -139,7 +140,9 @@ def check_liverpool(url):
             # Add more headers here
         }
         response = requests.get(url, headers=headers)
+        # st.write(response.status_code)
         if response.status_code == 200:
+            # st.write(response.text)
             soup = BeautifulSoup(response.text, 'html.parser')
             script_tag = soup.find("script", id="__NEXT_DATA__")
             json_object = json.loads(script_tag.text)
