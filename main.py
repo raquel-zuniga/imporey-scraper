@@ -89,10 +89,14 @@ def check_mercadolibre(url):
                     "span", class_="andes-money-amount__fraction")
                 price_arr = soup.find_all(
                     "span", class_="andes-money-amount__fraction")
-                list_price = price_arr[0]
-                promotion_price = None
-                if len(price_arr) > 1:
-                    promotion_price = price_arr[1]
+                try:
+                    list_price = price_arr[0]
+                    promotion_price = None
+                    if len(price_arr) > 1:
+                        promotion_price = price_arr[1]
+                except IndexError:
+                    return "Producto encontrado, información no encontrada", 0, 0, "-", "-"
+
                 rating = soup.find("span", "ui-pdp-review__rating")
                 review = soup.find(
                     "p",
@@ -107,7 +111,7 @@ def check_mercadolibre(url):
             return "PAGINA NO ENCONTRADA", 0, 0, "-", "-"
     except requests.RequestException as e:
         print(e)
-        return "Failed to fetch the page", 0, 0, "-", "-"
+        return "Error al intentar acceder a la página", 0, 0, "-", "-"
 
 
 # def check_walmart(url):
@@ -146,6 +150,8 @@ def check_liverpool(url):
             soup = BeautifulSoup(response.text, 'html.parser')
             script_tag = soup.find("script", id="__NEXT_DATA__")
             json_object = json.loads(script_tag.text)
+            discount_price = 0
+            regular_price = 0
             if json_object["query"]["data"]["mainContent"]["records"][0][
                     "allMeta"]["variants"][0]["prices"][
                         "promoPrice"] is not None or decimal.Decimal(
