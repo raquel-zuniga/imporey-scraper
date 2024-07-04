@@ -9,7 +9,7 @@ from openpyxl.styles import Color, PatternFill
 import json
 import decimal
 from itertools import cycle
-from twocaptcha import TwoCaptcha
+# from twocaptcha import TwoCaptcha
 
 
 def check_url(url):
@@ -46,7 +46,7 @@ def check_amazon(url):
         }
         response = requests.get(url, headers=headers)
         api_key = '19f424819d15388eed73fd466e625ed2'  # Replace with your 2Captcha API key
-        solver = TwoCaptcha(api_key)
+        # solver = TwoCaptcha(api_key)
         # st.write(response.status_code)
         if "necesitamos asegurarnos de que no eres un robot" in response.text.lower(
         ):
