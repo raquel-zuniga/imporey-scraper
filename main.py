@@ -9,6 +9,7 @@ from openpyxl.styles import Color, PatternFill
 import json
 import decimal
 from itertools import cycle
+from twocaptcha import TwoCaptcha
 
 
 def check_url(url):
@@ -44,10 +45,19 @@ def check_amazon(url):
             # Add more headers here
         }
         response = requests.get(url, headers=headers)
+        api_key = '19f424819d15388eed73fd466e625ed2'  # Replace with your 2Captcha API key
+        solver = TwoCaptcha(api_key)
         # st.write(response.status_code)
         if "necesitamos asegurarnos de que no eres un robot" in response.text.lower(
         ):
-            return "CAPTCHA", 0, 0, "-", "-"
+            # captcha_solution = solver.amazon(response.url)
+            # captcha_response = requests.post(url, data={'g-recaptcha-response': captcha_solution}, headers=headers)
+            # soup = BeautifulSoup(captcha_response.text, 'html.parser')
+            site_key = soup.find('input', {'name': 'amzn-r'}).get('value')
+            # result = solver.recaptcha(
+            #     sitekey=site_key,
+            #     url='https://mysite.com/page/with/recaptcha',
+            #     param1=..., ...)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if soup.find(string="No disponible por el momento."):
@@ -58,7 +68,6 @@ def check_amazon(url):
                 if promotion_span is not None:
                     promotion_price = soup.find("span",
                                                 class_="a-price a-text-price")
-                    st.write(promotion_price)
                 price = soup.find("span", class_="a-price-whole")
                 rating = soup.find("span", "a-icon-alt")
                 review = soup.find("span", id="acrCustomerReviewText")
@@ -95,7 +104,7 @@ def check_mercadolibre(url):
                     if len(price_arr) > 1:
                         promotion_price = price_arr[1]
                 except IndexError:
-                    return "Producto encontrado, información no encontrada", 0, 0, "-", "-"
+                    return "Información de precio no encontrado", 0, 0, "-", "-"
 
                 rating = soup.find("span", "ui-pdp-review__rating")
                 review = soup.find(
@@ -111,21 +120,33 @@ def check_mercadolibre(url):
             return "PAGINA NO ENCONTRADA", 0, 0, "-", "-"
     except requests.RequestException as e:
         print(e)
-        return "Error al intentar acceder a la página", 0, 0, "-", "-"
+        return "Error al intentar acceder a la pag", 0, 0, "-", "-"
 
 
-# def check_walmart(url):
-#     try:
-#         response = requests.get(url)
-#         if response.status_code == 200:
-#             soup = BeautifulSoup(response.text, 'html.parser')
-#             # Check specific indicators of availability
-#             if "agotado" in response.text.lower():
-#                 return "INACTIVO"
-#             else:
-#                 return "ACTIVO"
-#     except requests.RequestException:
-#         return "Failed to fetch the page"
+def check_walmart(url):
+    try:
+        response = requests.get(url)
+        st.write(response.status_code)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Check specific indicators of availability
+            if "agotado" in response.text.lower():
+                st.write("INACTIVO")
+                return "INACTIVO", 0, 0, "-", "-"
+            else:
+                st.write("Activo")
+                list_price = soup.find('span', itemprop='name')
+                promotion_price = None
+                rating = None
+                review = None
+                return ("ACTIVO",
+                        (list_price.text if list_price is not None else "-"),
+                        (promotion_price.text
+                         if promotion_price is not None else "-"),
+                        (rating.text if rating is not None else "-"),
+                        (review.text if review is not None else "-"))
+    except requests.RequestException:
+        return "Failed to fetch the page"
 
 
 def check_liverpool(url):
@@ -188,6 +209,45 @@ def check_liverpool(url):
 #         return "Failed to fetch the page"
 
 
+def check_home_depot(url):
+    try:
+
+        last_part = url.split("/")[-1]
+        last_value = last_part.split("-")[-1]
+        home_depot_request = f'https://www.homedepot.com.mx/search/resources/api/v2/products?langId=-5&storeId=10351&contractId=4000000000000000003&langId=-5&partNumber={last_value}&physicalStoreId=8702'
+        response = requests.get(home_depot_request)
+        data = response.json()
+        promotion_price = None
+        rating = None
+        review = None
+        list_price = None
+        status = "INACTIVO"
+        base_data = data["contents"][0]
+        for price_pos in base_data["price"]:
+            if price_pos["usage"] == "Offer":
+                promotion_price = price_pos["value"]
+            if price_pos["usage"] == "Display":
+                list_price = price_pos["value"]
+        if "x_ratings.total_reviews" in base_data:
+            review = base_data["x_ratings.total_reviews"]
+        if "x_ratings.rating" in base_data:
+            rating = base_data["x_ratings.rating"]
+        product_id = base_data["id"]
+        status_request = f'https://www.homedepot.com.mx/wcs/resources/store/10351/inventoryavailability/{product_id}?&langId=-5&onlineStoreId=10351&search=2&physicalStoreId=12605'
+        response = requests.get(status_request)
+        availabilty_data = response.json()
+        if availabilty_data["InventoryAvailability"][0][
+                "inventoryStatus"] == "Available":
+            status = "ACTIVO"
+
+        return (status, (list_price if list_price is not None else "-"),
+                (promotion_price if promotion_price is not None else "-"),
+                (rating if rating is not None else "-"),
+                (review if review is not None else "-"))
+    except requests.RequestException:
+        return "Failed to fetch the page"
+
+
 def main():
     # mas de un archivo
     # descarga del zip creado de facturapi
@@ -244,6 +304,12 @@ def main():
 
             elif marketplace == 'Liverpool':
                 result, price, promotion_price, rating, reviews = check_liverpool(
+                    link)
+            elif marketplace == 'Walmart':
+                result, price, promotion_price, rating, reviews = check_walmart(
+                    link)
+            elif marketplace == 'HomeDepot':
+                result, price, promotion_price, rating, reviews = check_home_depot(
                     link)
 
             row = [
