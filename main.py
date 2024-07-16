@@ -9,7 +9,7 @@ from openpyxl.styles import Color, PatternFill
 import json
 import decimal
 from itertools import cycle
-# from twocaptcha import TwoCaptcha
+from twocaptcha import TwoCaptcha
 
 
 def check_url(url):
@@ -45,19 +45,10 @@ def check_amazon(url):
             # Add more headers here
         }
         response = requests.get(url, headers=headers)
-        api_key = '19f424819d15388eed73fd466e625ed2'  # Replace with your 2Captcha API key
-        # solver = TwoCaptcha(api_key)
         # st.write(response.status_code)
         if "necesitamos asegurarnos de que no eres un robot" in response.text.lower(
         ):
-            # captcha_solution = solver.amazon(response.url)
-            # captcha_response = requests.post(url, data={'g-recaptcha-response': captcha_solution}, headers=headers)
-            # soup = BeautifulSoup(captcha_response.text, 'html.parser')
-            site_key = soup.find('input', {'name': 'amzn-r'}).get('value')
-            # result = solver.recaptcha(
-            #     sitekey=site_key,
-            #     url='https://mysite.com/page/with/recaptcha',
-            #     param1=..., ...)
+            return "CAPTCHA", 0, 0, "-", "-"
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             if soup.find(string="No disponible por el momento."):
