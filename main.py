@@ -29,7 +29,6 @@ def check_amazon(url):
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36",
         # Add more user agents here
     ]
-
     user_agent_cycle = cycle(user_agents)
     try:
         headers = {
@@ -58,6 +57,7 @@ def check_amazon(url):
                 if promotion_span is not None:
                     promotion_price = soup.find("span",
                                                 class_="a-price a-text-price")
+                    st.write(promotion_price)
                 price = soup.find("span", class_="a-price-whole")
                 rating = soup.find("span", "a-icon-alt")
                 review = soup.find("span", id="acrCustomerReviewText")
@@ -75,6 +75,7 @@ def check_mercadolibre(url):
     # url = check_url(url)
     try:
         response = requests.get(url)
+        st.write(url)
         # st.write(response.status_code)
         if response.status_code == 200:
             # st.write(response.text)
@@ -88,6 +89,7 @@ def check_mercadolibre(url):
                     "span", class_="andes-money-amount__fraction")
                 price_arr = soup.find_all(
                     "span", class_="andes-money-amount__fraction")
+                print(price_arr)
                 try:
                     list_price = price_arr[0]
                     promotion_price = None
