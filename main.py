@@ -9,7 +9,6 @@ from openpyxl.styles import Color, PatternFill
 import json
 import decimal
 from itertools import cycle
-from twocaptcha import TwoCaptcha
 
 
 def check_url(url):
